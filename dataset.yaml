@@ -1,0 +1,37 @@
+train: 
+  - /datasets/rotated_annots_5_min_video/images/  # train images (relative to 'path') 128 images
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task1/images/train
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task2/images/train
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task3/images/train
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task4/images/train
+  - /datasets/2021_6k_dataset/task1/images/train
+  - /datasets/2021_6k_dataset/task2/images/train
+  - /datasets/2021_6k_dataset/task3/images/train
+  - /datasets/2021_6k_dataset/task4/images/train
+  - /datasets/22_05_10-1/images/train
+  - /datasets/1700_1900_dataset/1700/task1/images/train
+  - /datasets/1700_1900_dataset/1700/task2/images/train
+  - /datasets/1700_1900_dataset/1700/task3/images/train
+  - /datasets/1700_1900_dataset/1900/task1/images/train
+  - /datasets/1700_1900_dataset/1900/task2/images/train
+  - /datasets/1700_1900_dataset/1900/task3/images/train
+val:
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task1/images/val
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task2/images/val
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task3/images/val
+  - /datasets/recorded_June_7_2022_78c86d0_all_tasks/task4/images/val
+  - /datasets/2021_6k_dataset/task1/images/val
+  - /datasets/2021_6k_dataset/task2/images/val
+  - /datasets/2021_6k_dataset/task3/images/val
+  - /datasets/2021_6k_dataset/task4/images/val
+  - /datasets/22_05_10-1/images/val
+  - /datasets/1700_1900_dataset/1700/task1/images/val
+  - /datasets/1700_1900_dataset/1700/task2/images/val
+  - /datasets/1700_1900_dataset/1700/task3/images/val
+  - /datasets/1700_1900_dataset/1900/task1/images/val
+  - /datasets/1700_1900_dataset/1900/task2/images/val
+  - /datasets/1700_1900_dataset/1900/task3/images/val
+
+# Classes
+nc: 8  # number of classes
+names: ['customer','hand','swiping_card','cart','bill','goods','staff','scanner']
