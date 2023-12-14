@@ -1,0 +1,23 @@
+version: "2.1"
+services:
+  dnca_208:
+    network_mode: host
+    security_opt:
+      - seccomp:unconfined
+    environment:
+      TZ: America/New_York
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: all
+      LD_LIBRARY_PATH: /usr/local/cuda/lib64:/opt/nvidia/deepstream/deepstream/lib:/usr/lib/x86_64-linux-gnu
+      GST_PLUGIN_PATH: /opt/nvidia/deepstream/deepstream/lib/gst-plugins:/usr/lib/x86_64-linux-gnu/gstreamer-1.0
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - /etc/timezone:/etc/timezone
+      - /algo/users/prashant/GoodsDetector/temp/YOLOv7-OBB:/root/apps/YOLOv7-OBB
+      - /algo/users/prashant/GoodsDetector/annotations:/algo/users/prashant/GoodsDetector/annotations
+    working_dir: /root/apps/YOLOv7-OBB
+    container_name: v7obb-train1
+    # image: dncav2:v1
+    image: v7obb:v1
+    entrypoint: sleep infinity
+    shm_size: 8gb

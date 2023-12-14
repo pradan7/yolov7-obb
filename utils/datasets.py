@@ -742,7 +742,7 @@ def verify_image_label(args):
     except Exception as e:
         traceback.print_exc()
         nc = 1
-        msg = f'{prefix}WARNING: {im_file}: ignoring corrupt image/label: {e}'
+        msg = f'{prefix}WARNING: {im_file}: 222 ignoring corrupt image/label: {e}'
         return [None, None, None, None, nm, nf, ne, nc, msg]
 
 

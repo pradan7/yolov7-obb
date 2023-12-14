@@ -1,0 +1,5 @@
+# ninja log v5
+1	8111	1701945834880624787	/root/apps/YOLOv7-OBB/utils/nms_rotated/build/temp.linux-x86_64-3.8/src/nms_rotated_cpu.o	255f0341d7a41375
+1	20520	1701945847273393217	/root/apps/YOLOv7-OBB/utils/nms_rotated/build/temp.linux-x86_64-3.8/src/nms_rotated_ext.o	e9cd82905eb2f77b
+3	41292	1701945867982006272	/root/apps/YOLOv7-OBB/utils/nms_rotated/build/temp.linux-x86_64-3.8/src/poly_nms_cuda.o	b7fc32bdb3f515ad
+2	58623	1701945885390681001	/root/apps/YOLOv7-OBB/utils/nms_rotated/build/temp.linux-x86_64-3.8/src/nms_rotated_cuda.o	de70aa3ebcfc9dad

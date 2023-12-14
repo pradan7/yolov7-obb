@@ -14,6 +14,7 @@ def obb_nms(dets, scores, iou_thr, device_id=None):
         dets (tensor): (n_nms, [cx cy w h θ])
         inds (tensor): (n_nms), nms index of dets
     """
+    device = 'cpu'
     if isinstance(dets, torch.Tensor):
         is_numpy = False
         dets_th = dets
@@ -30,15 +31,18 @@ def obb_nms(dets, scores, iou_thr, device_id=None):
     else:
         # same bug will happen when bboxes is too small
         too_small = dets_th[:, [2, 3]].min(1)[0] < 0.001 # [n]
+        too_small = too_small.to(device) # Change 2: move indices to device
         if too_small.all(): # all the bboxes is too small
             inds = dets_th.new_zeros(0, dtype=torch.int64)
         else:
-            ori_inds = torch.arange(dets_th.size(0)) # 0 ~ n-1
+            # ori_inds = torch.arange(dets_th.size(0)) # 0 ~ n-1
+            ori_inds = torch.arange(dets_th.size(0)).to(device) # 0 ~ n-1 # Change 3: Move variable to device
             ori_inds = ori_inds[~too_small]
             dets_th = dets_th[~too_small] # (n_filter, 5)
             scores = scores[~too_small]
 
-            inds = nms_rotated_ext.nms_rotated(dets_th, scores, iou_thr)
+            # inds = nms_rotated_ext.nms_rotated(dets_th, scores, iou_thr)
+            inds = nms_rotated_ext.nms_rotated(dets_th, scores, iou_thr).to(device) 
             inds = ori_inds[inds]
 
     if is_numpy:
