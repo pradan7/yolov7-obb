@@ -187,7 +187,11 @@ def check_yaml(file, suffix=('.yaml', '.yml')):
     # Search/download YAML file (if necessary) and return path, checking suffix
     return check_file(file, suffix)
 
-
+def is_ascii(s=''):
+    # Is string composed of all ASCII (no UTF) characters? (note str().isascii() introduced in python 3.7)
+    s = str(s)  # convert list, tuple, None, etc. to str
+    return len(s.encode().decode('ascii', 'ignore')) == len(s)
+    
 def check_file(file):
     # Search for file if not found
     if Path(file).is_file() or file == '':

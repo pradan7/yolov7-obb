@@ -9,10 +9,11 @@ from numpy import random
 
 from models.experimental import attempt_load
 from utils.datasets import LoadStreams, LoadImages
-from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, apply_classifier, \
-    scale_coords, xyxy2xywh, strip_optimizer, set_logging, increment_path
-from utils.plots import plot_one_box
+from utils.general import check_img_size, check_requirements, check_imshow, non_max_suppression, non_max_suppression_obb, apply_classifier, \
+    scale_coords, scale_polys, xyxy2xywh, strip_optimizer, set_logging, increment_path
+from utils.plots import plot_one_box, Annotator, colors
 from utils.torch_utils import select_device, load_classifier, time_synchronized, TracedModel
+from utils.rboxs_utils import poly2rbox, rbox2poly
 
 
 def detect(save_img=False):
@@ -58,7 +59,7 @@ def detect(save_img=False):
 
     # Get names and colors
     names = model.module.names if hasattr(model, 'module') else model.names
-    colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
+    # colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
 
     # Run inference
     if device.type != 'cpu':
@@ -88,7 +89,8 @@ def detect(save_img=False):
         t2 = time_synchronized()
 
         # Apply NMS
-        pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms)
+        # pred = non_max_suppression(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms) # expect xyxy (not xc yc)
+        pred = non_max_suppression_obb(pred, opt.conf_thres, opt.iou_thres, classes=opt.classes, agnostic=opt.agnostic_nms, multi_label=True, max_det=1000)
         t3 = time_synchronized()
 
         # Apply Classifier
@@ -97,6 +99,8 @@ def detect(save_img=False):
 
         # Process detections
         for i, det in enumerate(pred):  # detections per image
+            pred_poly = rbox2poly(det[:, :5]) # (n, [x1 y1 x2 y2 x3 y3 x4 y4])
+
             if webcam:  # batch_size >= 1
                 p, s, im0, frame = path[i], '%g: ' % i, im0s[i].copy(), dataset.count
             else:
@@ -106,9 +110,14 @@ def detect(save_img=False):
             save_path = str(save_dir / p.name)  # img.jpg
             txt_path = str(save_dir / 'labels' / p.stem) + ('' if dataset.mode == 'image' else f'_{frame}')  # img.txt
             gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
+
+            annotator = Annotator(im0, line_width=3, example=str(names))
+
             if len(det):
                 # Rescale boxes from img_size to im0 size
-                det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                # det[:, :4] = scale_coords(img.shape[2:], det[:, :4], im0.shape).round()
+                pred_poly = scale_polys(img.shape[2:], pred_poly, im0.shape)
+                det = torch.cat((pred_poly, det[:, -2:]), dim=1) # (n, [poly conf cls])
 
                 # Print results
                 for c in det[:, -1].unique():
@@ -116,21 +125,25 @@ def detect(save_img=False):
                     s += f"{n} {names[int(c)]}{'s' * (n > 1)}, "  # add to string
 
                 # Write results
-                for *xyxy, conf, cls in reversed(det):
+                for *poly, conf, cls in reversed(det):
                     if save_txt:  # Write to file
-                        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
-                        line = (cls, *xywh, conf) if opt.save_conf else (cls, *xywh)  # label format
+                        # xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
+                        poly = poly.tolist()
+                        line = (cls, *poly, conf) if opt.save_conf else (cls, *poly)  # label format
                         with open(txt_path + '.txt', 'a') as f:
                             f.write(('%g ' * len(line)).rstrip() % line + '\n')
 
                     if save_img or view_img:  # Add bbox to image
                         label = f'{names[int(cls)]} {conf:.2f}'
-                        plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+                        # plot_one_box(xyxy, im0, label=label, color=colors[int(cls)], line_thickness=1)
+                        # import pdb;pdb.set_trace()
+                        annotator.poly_label(poly, label, color=colors(int(cls), True))
 
             # Print time (inference + NMS)
             print(f'{s}Done. ({(1E3 * (t2 - t1)):.1f}ms) Inference, ({(1E3 * (t3 - t2)):.1f}ms) NMS')
 
             # Stream results
+            im0 = annotator.result()
             if view_img:
                 cv2.imshow(str(p), im0)
                 cv2.waitKey(1)  # 1 millisecond

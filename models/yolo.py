@@ -51,7 +51,9 @@ class Detect(nn.Module):
             if not self.training:  # inference
                 if self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
-                y = x[i].sigmoid()
+                y = x[i].sigmoid() # torch.Size([1, 3, 4, 4, 193]), torch.Size([1, 3, 2, 2, 193]), torch.Size([1, 3, 1, 1, 193])
+
+                # import pdb;pdb.set_trace()
                 if not torch.onnx.is_in_onnx_export():
                     y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
                     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
@@ -63,7 +65,7 @@ class Detect(nn.Module):
                     xy = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
                     wh = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                     y = torch.cat((xy, wh, y[..., 4:]), -1) 
-                z.append(y.view(bs, -1, self.no))
+                z.append(y.view(bs, -1, self.no)) # [ torch.Size([1, 48, 193]), torch.Size([1, 12, 193]), torch.Size([1, 3, 193]) ]
 
         if self.training:
             out = x
@@ -352,6 +354,7 @@ class IAuxDetect(nn.Module):
                     self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
 
                 y = x[i].sigmoid()
+                print("---? OK")
                 if not torch.onnx.is_in_onnx_export():
                     y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
                     y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh

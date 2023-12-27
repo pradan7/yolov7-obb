@@ -1,6 +1,6 @@
 version: "2.1"
 services:
-  dnca_208:
+  v7obb:
     network_mode: host
     security_opt:
       - seccomp:unconfined
@@ -13,11 +13,11 @@ services:
     volumes:
       - /etc/localtime:/etc/localtime
       - /etc/timezone:/etc/timezone
-      - /algo/users/prashant/GoodsDetector/temp/YOLOv7-OBB:/root/apps/YOLOv7-OBB
+      - /algo/users/prashant/GoodsDetector/YOLOv7-OBB:/root/apps/YOLOv7-OBB
       - /algo/users/prashant/GoodsDetector/annotations:/algo/users/prashant/GoodsDetector/annotations
     working_dir: /root/apps/YOLOv7-OBB
     container_name: v7obb-train1
     # image: dncav2:v1
-    image: v7obb:v1
+    image: v7obb:v2
     entrypoint: sleep infinity
     shm_size: 8gb
