@@ -126,7 +126,8 @@ class ConfusionMatrix:
         """
         detections = detections[detections[:, 2] > self.conf]
         gt_classes = labels[:, 0].int()
-        detection_classes = 1 #detections[:, 5].int()
+        # detection_classes = 1 #detections[:, 5].int()
+        detection_classes = detections[:, 5].int()
         iou = general.box_iou(labels[:, 1:], detections[:, :4])
 
         x = torch.where(iou > self.iou_thres)

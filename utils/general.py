@@ -183,9 +183,9 @@ def check_suffix(file='yolov5s.pt', suffix=('.pt',), msg=''):
                 assert s in suffix, f"{msg}{f} acceptable suffix is {suffix}"
 
 
-def check_yaml(file, suffix=('.yaml', '.yml')):
-    # Search/download YAML file (if necessary) and return path, checking suffix
-    return check_file(file, suffix)
+# def check_yaml(file, suffix=('.yaml', '.yml')):
+#     # Search/download YAML file (if necessary) and return path, checking suffix
+#     return check_file(file, suffix)
 
 def is_ascii(s=''):
     # Is string composed of all ASCII (no UTF) characters? (note str().isascii() introduced in python 3.7)

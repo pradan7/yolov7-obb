@@ -27,3 +27,17 @@ python detect.py --weights 'weights/yolov7_obb_30k_images_60epochs.pt' \
   --source 'data/resize.png' \
   --img-size 640 --device 0 --conf-thres 0.5
 ```
+
+# Evaluate
+The holdout set has been prepared out of batch 6 to 10 in `/algo/users/prashant/GoodsDetector/annotations/dnca_v2_holdout_set`. 
+
+Before running evaluation/training on new data, make sure to follow these steps to avoid `corrupt/image label...` error.
+- delete the existing train and val cache  The cache is store in the directory where the split data is stored. For e.g. `/algo/users/prashant/GoodsDetector/annotations/dnca_v2_holdout_set/split_data/dnca_v2_data/labelTxt/train.cache` i.e the current holdout set directory.
+- Run the train.py script (see command above) for this dataset such that it creates new cache files there.
+- Now run the val(popo) script for the new dataset. 
+Note that for all these steps, the dataset is denoted by its yaml.
+
+The default evaluation script has been modified to run evaluation for different imagesizes (only square allowed for now) and for all weights saved during all training experiments.
+```
+python3 val.py --weights runs/train/yolov7obb-defparams3/weights/best.pt  --data data/dnca-v2-data_0612.yaml --device 1,2,3,4,5,6,7 --batch-size 21
+```

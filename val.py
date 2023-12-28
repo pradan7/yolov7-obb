@@ -26,14 +26,15 @@ if str(ROOT) not in sys.path:
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
 # from models.common import DetectMultiBackend
+from models.experimental import attempt_load
 from utils.callbacks import Callbacks
 from utils.datasets import create_dataloader
-from utils.general import (LOGGER, box_iou, check_dataset, check_img_size, check_requirements, check_yaml,
+from utils.general import (LOGGER, box_iou, check_dataset, check_img_size, check_requirements, check_file,
                            coco80_to_coco91_class, colorstr, increment_path, non_max_suppression,
                            scale_coords, scale_polys, xywh2xyxy, xyxy2xywh, non_max_suppression_obb)
 from utils.metrics import ConfusionMatrix, ap_per_class
 from utils.plots import output_to_target, plot_images, plot_val_study
-from utils.torch_utils import select_device, time_sync
+from utils.torch_utils import select_device, time_sync, TracedModel
 
 
 def save_one_txt(predn, save_conf, shape, file):
@@ -116,13 +117,34 @@ def run(data,
         dataloader=None,
         save_dir=Path(''),
         plots=True,
+        trace=True,
         callbacks=Callbacks(),
         compute_loss=None,
         ):
     # Initialize/load model and set device
     training = model is not None
     # if training:  # called by train.py
-    device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
+    # device, pt, jit, engine = next(model.parameters()).device, True, False, False  # get model device, PyTorch model
+    if training:  # called by train.py
+        device = next(model.parameters()).device  # get model device
+    else:  # called directly
+        # set_logging()
+        device = select_device(opt.device, batch_size=batch_size)
+
+        # Directories
+        save_dir = Path(increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok))  # increment run
+        (save_dir / 'labels' if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
+
+        # Load model
+        model = attempt_load(weights, map_location=device)  # load FP32 model
+        gs = max(int(model.stride.max()), 32)  # grid size (max stride)
+        imgsz = check_img_size(imgsz, s=gs)  # check img_size
+        
+        if trace:
+            model = TracedModel(model, device, imgsz)
+        
+        # Data
+        data = check_dataset(data)  # check
 
     half &= device.type != 'cpu'  # half precision only supported on CUDA
     model.half() if half else model.float()
@@ -161,10 +183,10 @@ def run(data,
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
     # Dataloader
     if not training:
-        model.warmup(imgsz=(1, 3, imgsz, imgsz), half=half)  # warmup
+        # model.warmup(imgsz=(1, 3, imgsz, imgsz), half=half)  # warmup
         pad = 0.0 if task == 'speed' else 0.5
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
-        dataloader = create_dataloader(data[task], imgsz, batch_size, stride, names, single_cls, pad=pad, rect=pt,
+        dataloader = create_dataloader(data[task], imgsz, batch_size, gs, names, single_cls, pad=pad, rect=True,
                                        workers=workers, prefix=colorstr(f'{task}: '))[0]
 
     seen = 0
@@ -181,9 +203,12 @@ def run(data,
         # targets (tensor): (n_gt_all_batch, [img_index clsid cx cy l s theta gaussian_θ_labels]) θ ∈ [-pi/2, pi/2)
         # shapes (tensor): (b, [(h_raw, w_raw), (hw_ratios, wh_paddings)])
         t1 = time_sync()
-        if pt or jit or engine:
-            im = im.to(device, non_blocking=True)
-            targets = targets.to(device)
+        # if pt or jit or engine:
+        #     im = im.to(device, non_blocking=True)
+        #     targets = targets.to(device)
+        im = im.to(device, non_blocking=True)
+        targets = targets.to(device)
+
         im = im.half() if half else im.float()  # uint8 to fp16/32
         im /= 255  # 0 - 255 to 0.0 - 1.0
         nb, _, height, width = im.shape  # batch size, channels, height, width
@@ -191,7 +216,7 @@ def run(data,
         dt[0] += t2 - t1
 
         # Inference
-        out, train_out = model(im) if training else model(im, augment=augment, val=True)  # inference, loss outputs
+        out, train_out = model(im) if training else model(im, augment=augment)  # inference, loss outputs
         dt[1] += time_sync() - t2
 
         # Loss
@@ -357,7 +382,8 @@ def parse_opt():
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     opt = parser.parse_args()
-    opt.data = check_yaml(opt.data)  # check YAML
+    # import pdb;pdb.set_trace()
+    opt.data = check_file(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
     opt.save_txt |= opt.save_hybrid
     # print_args(FILE.stem, opt)
