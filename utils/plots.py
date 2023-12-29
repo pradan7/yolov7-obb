@@ -18,10 +18,12 @@ import yaml
 from PIL import Image, ImageDraw, ImageFont
 from scipy.signal import butter, filtfilt
 
-from utils.general import xywh2xyxy, xyxy2xywh, is_ascii
+from utils.general import xywh2xyxy, xyxy2xywh, is_ascii, is_chinese, user_config_dir
 from utils.metrics import fitness
+from utils.rboxs_utils import poly2hbb, poly2rbox, rbox2poly
 
 # Settings
+CONFIG_DIR = user_config_dir()  # Ultralytics settings dir
 RANK = int(os.getenv('RANK', -1))
 matplotlib.rc('font', **{'size': 11})
 matplotlib.use('Agg')  # for writing to files only
@@ -49,7 +51,7 @@ colors = Colors()  # create instance for 'from utils.plots import colors'
 def check_font(font='Arial.ttf', size=10):
     # Return a PIL TrueType Font, downloading to CONFIG_DIR if necessary
     font = Path(font)
-    # font = font if font.exists() else (CONFIG_DIR / font.name) # I have downloaded and put the ttf file here so, don;t check
+    font = font if font.exists() else (CONFIG_DIR / font.name) # I have downloaded and put the ttf file here so, don;t check
 
     try:
         return ImageFont.truetype(str(font) if font.exists() else font.name, size)
@@ -69,7 +71,7 @@ class Annotator:
     # YOLOv5 Annotator for train/val mosaics and jpgs and detect/hub inference annotations
     def __init__(self, im, line_width=None, font_size=None, font='Arial.ttf', pil=False, example='abc'):
         assert im.data.contiguous, 'Image not contiguous. Apply np.ascontiguousarray(im) to Annotator() input images.'
-        self.pil = pil or not is_ascii(example)
+        self.pil = pil or not is_ascii(example) or is_chinese(example)
         if self.pil:  # use PIL
             self.im = im if isinstance(im, Image.Image) else Image.fromarray(im)
             self.im_cv2 = im
@@ -267,16 +269,24 @@ def plot_wh_methods():  # from utils.plots import *; plot_wh_methods()
     fig.savefig('comparison.png', dpi=200)
 
 
-def output_to_target(output):
-    # Convert model output to target format [batch_id, class_id, x, y, w, h, conf]
+# def output_to_target(output):
+#     # Convert model output to target format [batch_id, class_id, x, y, w, h, conf]
+#     targets = []
+#     for i, o in enumerate(output):
+#         for *box, conf, cls in o.cpu().numpy():
+#             targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), conf])
+#     return np.array(targets)
+
+def output_to_target(output): #list*(n, [xylsθ, conf, cls]) θ ∈ [-pi/2, pi/2)
+    # Convert model output to target format [batch_id, class_id, x, y, l, s, theta, conf]
     targets = []
     for i, o in enumerate(output):
-        for *box, conf, cls in o.cpu().numpy():
-            targets.append([i, cls, *list(*xyxy2xywh(np.array(box)[None])), conf])
+        for *rbox, conf, cls in o.cpu().numpy():
+            targets.append([i, cls, *list(*(np.array(rbox)[None])), conf])
     return np.array(targets)
 
 
-def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16):
+def plot_images_org(images, targets, paths=None, fname='images.jpg', names=None, max_size=640, max_subplots=16):
     # Plot image grid with labels
 
     if isinstance(images, torch.Tensor):
@@ -353,6 +363,92 @@ def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max
         # cv2.imwrite(fname, cv2.cvtColor(mosaic, cv2.COLOR_BGR2RGB))  # cv2 save
         Image.fromarray(mosaic).save(fname)  # PIL save
     return mosaic
+
+def plot_images(images, targets, paths=None, fname='images.jpg', names=None, max_size=2048, max_subplots=4):
+    """
+    Args:
+        imgs (tensor): (b, 3, height, width)
+        targets_train (tensor): (n_targets, [batch_id clsid cx cy l s theta gaussian_θ_labels]) θ∈[-pi/2, pi/2)
+        targets_pred (array): (n, [batch_id, class_id, cx, cy, l, s, theta, conf]) θ∈[-pi/2, pi/2)
+        paths (list[str,...]): (b)
+        fname (str): (1) 
+        names :
+
+    """
+    # Plot image grid with labels
+    if isinstance(images, torch.Tensor):
+        images = images.cpu().float().numpy()
+    if isinstance(targets, torch.Tensor):
+        targets = targets.cpu().numpy()
+    if np.max(images[0]) <= 1:
+        images *= 255  # de-normalise (optional)
+    bs, _, h, w = images.shape  # batch size, _, height, width
+    bs = min(bs, max_subplots)  # limit plot images
+    ns = np.ceil(bs ** 0.5)  # number of subplots (square)
+
+    # Build Image
+    mosaic = np.full((int(ns * h), int(ns * w), 3), 255, dtype=np.uint8)  # init
+    for i, im in enumerate(images):
+        if i == max_subplots:  # if last batch has fewer images than we expect
+            break
+        x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
+        im = im.transpose(1, 2, 0)
+        mosaic[y:y + h, x:x + w, :] = im
+
+    # Resize (optional)
+    scale = max_size / ns / max(h, w)
+    if scale < 1:
+        h = math.ceil(scale * h)
+        w = math.ceil(scale * w)
+        mosaic = cv2.resize(mosaic, tuple(int(x * ns) for x in (w, h)))
+
+    # Annotate
+    fs = int((h + w) * ns * 0.01)  # font size
+    annotator = Annotator(mosaic, line_width=round(fs / 10), font_size=fs, pil=True)
+
+    for i in range(i + 1):
+        x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
+        annotator.rectangle([x, y, x + w, y + h], None, (255, 255, 255), width=2)  # borders
+        if paths:
+            annotator.text((x + 5, y + 5 + h), text=Path(paths[i]).name[:40], txt_color=(220, 220, 220))  # filenames
+        if len(targets) > 0:
+            ti = targets[targets[:, 0] == i]  # image targets, (n, [img_index clsid cx cy l s theta gaussian_θ_labels])
+            # boxes = xywh2xyxy(ti[:, 2:6]).T
+            rboxes = ti[:, 2:7]
+            classes = ti[:, 1].astype('int')
+            # labels = ti.shape[1] == 6  # labels if no conf column
+            labels = ti.shape[1] == 187  # labels if no conf column
+            # conf = None if labels else ti[:, 6]  # check for confidence presence (label vs pred)
+            conf = None if labels else ti[:, 7]  # check for confidence presence (label vs pred)
+
+            # if boxes.shape[1]:
+            #     if boxes.max() <= 1.01:  # if normalized with tolerance 0.01
+            #         boxes[[0, 2]] *= w  # scale to pixels
+            #         boxes[[1, 3]] *= h
+            #     elif scale < 1:  # absolute coords need scale if image scales
+            #         boxes *= scale
+            polys = rbox2poly(rboxes)
+            if scale < 1:
+                polys *= scale
+            # boxes[[0, 2]] += x
+            # boxes[[1, 3]] += y
+            polys[:, [0, 2, 4, 6]] += x
+            polys[:, [1, 3, 5, 7]] += y
+            # for j, box in enumerate(boxes.T.tolist()):
+            #     cls = classes[j]
+            #     color = colors(cls)
+            #     cls = names[cls] if names else cls
+            #     if labels or conf[j] > 0.25:  # 0.25 conf thresh
+            #         label = f'{cls}' if labels else f'{cls} {conf[j]:.1f}'
+            #         annotator.box_label(box, label, color=color)
+            for j, poly in enumerate(polys.tolist()):
+                cls = classes[j]
+                color = colors(cls)
+                cls = names[cls] if names else cls
+                if labels or conf[j] > 0.25:  # 0.25 conf thresh
+                    label = f'{cls}' if labels else f'{cls} {conf[j]:.1f}'   
+                    annotator.poly_label(poly, label, color=color)
+    annotator.im.save(fname)  # save
 
 
 def plot_lr_scheduler(optimizer, scheduler, epochs=300, save_dir=''):
@@ -434,9 +530,9 @@ def plot_study_txt(path='', x=None):  # from utils.plots import *; plot_study_tx
     plt.savefig(str(Path(path).name) + '.png', dpi=300)
 
 
-def plot_labels(labels, names=(), save_dir=Path(''), loggers=None):
+def plot_labels(labels, names=(), save_dir=Path(''), loggers=None, img_size=1024):
     # plot dataset labels
-    print('Plotting labels... ')
+    print('--> Plotting labels... ')
     c, b = labels[:, 0], labels[:, 1:].transpose()  # classes, boxes
     nc = int(c.max() + 1)  # number of classes
     colors = color_list()

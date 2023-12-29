@@ -10,11 +10,13 @@ import argparse
 import json
 import os
 import sys
+import time
 from pathlib import Path
 from threading import Thread
 
 import numpy as np
 import torch
+import pandas as pd
 from tqdm import tqdm
 
 from utils.rboxs_utils import poly2hbb, rbox2poly
@@ -35,7 +37,6 @@ from utils.general import (LOGGER, box_iou, check_dataset, check_img_size, check
 from utils.metrics import ConfusionMatrix, ap_per_class
 from utils.plots import output_to_target, plot_images, plot_val_study
 from utils.torch_utils import select_device, time_sync, TracedModel
-
 
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
@@ -121,6 +122,10 @@ def run(data,
         callbacks=Callbacks(),
         compute_loss=None,
         ):
+    
+     # Initialise result dict
+    red = {}
+
     # Initialize/load model and set device
     training = model is not None
     # if training:  # called by train.py
@@ -188,6 +193,8 @@ def run(data,
         task = task if task in ('train', 'val', 'test') else 'val'  # path to train/val/test images
         dataloader = create_dataloader(data[task], imgsz, batch_size, gs, names, single_cls, pad=pad, rect=True,
                                        workers=workers, prefix=colorstr(f'{task}: '))[0]
+    print("Dataloader created")
+    # time.sleep(10)
 
     seen = 0
     confusion_matrix = ConfusionMatrix(nc=nc)
@@ -304,10 +311,15 @@ def run(data,
     pf = '%20s' + '%11i' * 2 + '%11.3g' * 4  # print format
     LOGGER.info(pf % ('all', seen, nt.sum(), mp, mr, map50, map))
 
+    red["all"] = {"images":seen, "labels": nt.sum(), "precision": round(mp,3), "recall": round(mr,3), "map50": round(map50,3), "map":round(map,3)}
+
     # Print results per class
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
         for i, c in enumerate(ap_class):
             LOGGER.info(pf % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+            # Also populate result dict (red) to be returned
+            red[names[c]] = {"images":seen, "labels": round(nt[c],3), "precision": round(p[i],3), "recall": round(r[i],3), "map50": round(ap50[i],3), "map":round(ap[i],3)}
+
 
     # Print speeds
     t = tuple(x / seen * 1E3 for x in dt)  # speeds per image
@@ -355,7 +367,7 @@ def run(data,
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):
         maps[c] = ap[i]
-    return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t
+    return (mp, mr, map50, map, *(loss.cpu() / len(dataloader)).tolist()), maps, t, red
 
 
 def parse_opt():
@@ -397,7 +409,8 @@ def main(opt):
         # if opt.conf_thres > 0.001:  # https://github.com/ultralytics/yolov5/issues/1466
         if opt.conf_thres > 0.01:  
             LOGGER.info(f'WARNING: In oriented detection, confidence threshold {opt.conf_thres} >> 0.01 will produce invalid mAP values.')
-        run(**vars(opt))
+        _, _, _, red = run(**vars(opt))
+        return red
 
     else:
         weights = opt.weights if isinstance(opt.weights, list) else [opt.weights]
@@ -422,6 +435,51 @@ def main(opt):
             plot_val_study(x=x)  # plot
 
 
+variations = {"imgsz":[768]}
+
 if __name__ == "__main__":
     opt = parse_opt()
-    main(opt)
+
+    # Save results to csv
+    df_rows = []
+    column_names = ["experiment"]
+
+    for weight in opt.weights:
+        exp_name = ""
+        for i in weight.split("/")[-3:]: exp_name += i
+
+        for imgsz in variations["imgsz"]:
+            print(f"Experiment: {exp_name} | img_size: {imgsz}")
+            try:
+                opt.imgsz = imgsz
+                red = main(opt)
+                # Skip if nclasses is > 9 (It is possible that a wrong model is picked up)
+                # if(len(list(red.keys())) != 9): 
+                #     print(f"len(list(red.keys())) != 9\nred.keys: {red.keys()}")
+                #     continue
+
+                # Prepare dataframe | e.g : exp70_640, all_labels, all_precision, all_recall, ...
+                
+                values = [f"{exp_name}_{imgsz}"]
+                
+                for key in list(red.keys()):
+                    for metric in red[key].keys():
+                        title = f"{key}_{metric}"
+                        if(title not in column_names):column_names.append(title)
+                        
+                        # import pdb;pdb.set_trace()
+                        values.append(red[key][metric])
+                
+                success = True
+            except Exception as e:
+                success = False
+                print(f"Error for weight {weight}, error: {e}")
+                pass
+            if(success): 
+                df_rows.append(values)
+            
+    df = pd.DataFrame(df_rows, columns=column_names)
+    print(df)
+    csv_name = f"runs/evalpopo/{1259}.csv"
+    os.makedirs("runs/evalpopo/",exist_ok=True)
+    df.to_csv(csv_name, index=False)
