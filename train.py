@@ -269,7 +269,8 @@ def train(hyp, opt, device, tb_writer=None):
             # cf = torch.bincount(c.long(), minlength=nc) + 1.  # frequency
             # model._initialize_biases(cf.to(device))
             if plots:
-                plot_labels(labels, names, save_dir, loggers, imgsz)
+                # Not needed as this actually plot the distribution of boxes and classes
+                # plot_labels(labels, names, save_dir, loggers, imgsz)
                 if tb_writer:
                     tb_writer.add_histogram('classes', c, 0)
 
@@ -367,12 +368,10 @@ def train(hyp, opt, device, tb_writer=None):
                 pred = model(imgs)  # forward
                 # print("pred_shape = ",pred[0].shape) # --> [2, 3, 80, 80, 193]
                 # print(pred[0].shape) # --> 16, 80, 80 , 85
-                # print(pred[1].shape)
-                # print(pred[2].shape)
-                if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
-                    loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
-                else:
-                    loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+                # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
+                #     loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
+                # else:
+                loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:
@@ -423,7 +422,7 @@ def train(hyp, opt, device, tb_writer=None):
             final_epoch = epoch + 1 == epochs
             if not opt.notest or final_epoch:  # Calculate mAP
                 wandb_logger.current_epoch = epoch + 1
-                results, maps, times = val.run(data_dict,
+                results, maps, times, _ = val.run(data_dict,
                                                batch_size=batch_size * 2,
                                                imgsz=imgsz_test,
                                                model=ema.ema,
@@ -505,7 +504,7 @@ def train(hyp, opt, device, tb_writer=None):
         logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
         if opt.data.endswith('coco.yaml') and nc == 80:  # if COCO
             for m in (last, best) if best.exists() else (last):  # speed, mAP tests
-                results, _, _ = val.run(  data_dict,
+                results, _, _, _ = val.run(  data_dict,
                                           batch_size=batch_size * 2,
                                           imgsz=imgsz_test,
                                           model=attempt_load(m, device).half(),

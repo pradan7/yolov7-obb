@@ -10,11 +10,12 @@ Our container is based on `nvcr.io/nvidia/pytorch:22.02-py3` and has god-knows-w
 Use the docker-compose file to launch the container. 
 
 ## Train
-
 ```
 [DOESN'T WORK] python -m torch.distributed.launch --nproc_per_node 4 --master_port 9527 train.py --workers 8 --device 0,1,2,3,4,5,6,7 --sync-bn --batch-size 80 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb --hyp data/hyp.scratch.p5.yaml
 
-[WORKS] python train.py --workers 8 --device 0,1,2,3,4,5,6,7 --sync-bn --batch-size 48 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb-defparams --hyp data/hyp.scratch.p5.yaml
+[WORKS] python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 42 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb --hyp data/hyp.scratch.p5.yaml
+
+python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 42 --data data/smol-data.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name v7obb --hyp data/hyp.scratch.p5.yaml
 
 python train.py --workers 8 --device 0 --sync-bn --batch-size 4 --data data/.yaml  --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb-defParams --hyp data/hyp.scratch.p5.yaml
 ```
@@ -44,4 +45,6 @@ python3 val.py --weights runs/train/yolov7obb-defparams3/weights/best.pt  --data
 python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/dnca-v2-data_0612.yaml --device 1,2,3,4,5,6,7 --batch-size 21
 
 python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/dnca-v2-holdout.yaml --device 1,2,3,4,5,6,7 --batch-size 21
+
+python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/smol-data.yaml --device 1,2,3,4,5,6,7 --batch-size 21
 ```

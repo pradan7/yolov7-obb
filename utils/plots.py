@@ -531,11 +531,12 @@ def plot_study_txt(path='', x=None):  # from utils.plots import *; plot_study_tx
 
 
 def plot_labels(labels, names=(), save_dir=Path(''), loggers=None, img_size=1024):
-    # plot dataset labels
+    # plot dataset labels' stats (mostly histograms). Dont confuse with annotated images
     print('--> Plotting labels... ')
     c, b = labels[:, 0], labels[:, 1:].transpose()  # classes, boxes
     nc = int(c.max() + 1)  # number of classes
     colors = color_list()
+    # import pdb;pdb.set_trace()
     x = pd.DataFrame(b.transpose(), columns=['x', 'y', 'width', 'height'])
 
     # seaborn correlogram
