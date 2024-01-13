@@ -123,7 +123,7 @@ def run(data,
         compute_loss=None,
         ):
     
-     # Initialise result dict
+    # Initialise result dict
     red = {}
 
     # Initialize/load model and set device
@@ -186,6 +186,7 @@ def run(data,
     niou = iouv.numel()
 
     names = {k: v for k, v in enumerate(model.names if hasattr(model, 'names') else model.module.names)}
+    
     # Dataloader
     if not training:
         # model.warmup(imgsz=(1, 3, imgsz, imgsz), half=half)  # warmup
@@ -291,7 +292,7 @@ def run(data,
             callbacks.run('on_val_image_end', pred_hbb, pred_hbbn, path, names, im[si])
 
         # Plot images
-        if plots and batch_i < 3:
+        if plots:# and batch_i < 3:
             f = save_dir / f'val_batch{batch_i}_labels.jpg'  # labels
             Thread(target=plot_images, args=(im, targets, paths, f, names), daemon=True).start()
             f = save_dir / f'val_batch{batch_i}_pred.jpg'  # predictions
@@ -394,7 +395,6 @@ def parse_opt():
     parser.add_argument('--half', action='store_true', help='use FP16 half-precision inference')
     parser.add_argument('--dnn', action='store_true', help='use OpenCV DNN for ONNX inference')
     opt = parser.parse_args()
-    # import pdb;pdb.set_trace()
     opt.data = check_file(opt.data)  # check YAML
     opt.save_json |= opt.data.endswith('coco.yaml')
     opt.save_txt |= opt.save_hybrid
@@ -410,6 +410,7 @@ def main(opt):
         if opt.conf_thres > 0.01:  
             LOGGER.info(f'WARNING: In oriented detection, confidence threshold {opt.conf_thres} >> 0.01 will produce invalid mAP values.')
         _, _, _, red = run(**vars(opt))
+        print("All good")
         return red
 
     else:
@@ -435,7 +436,7 @@ def main(opt):
             plot_val_study(x=x)  # plot
 
 
-variations = {"imgsz":[768]}
+variations = {"imgsz":[640, 768]}
 
 if __name__ == "__main__":
     opt = parse_opt()
@@ -466,8 +467,7 @@ if __name__ == "__main__":
                     for metric in red[key].keys():
                         title = f"{key}_{metric}"
                         if(title not in column_names):column_names.append(title)
-                        
-                        # import pdb;pdb.set_trace()
+            
                         values.append(red[key][metric])
                 
                 success = True

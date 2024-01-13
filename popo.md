@@ -10,14 +10,21 @@ Our container is based on `nvcr.io/nvidia/pytorch:22.02-py3` and has god-knows-w
 Use the docker-compose file to launch the container. 
 
 ## Train
+To resume training, add `--resume runs/exp4/weights/best.pt` flag to below commands right after `train.py`. The best part is, that the training resumes from the same epoch where it crashed and everything is logged to the same save directory as before. It is important to give the weight from which training is to be resumed.
+
 ```
 [DOESN'T WORK] python -m torch.distributed.launch --nproc_per_node 4 --master_port 9527 train.py --workers 8 --device 0,1,2,3,4,5,6,7 --sync-bn --batch-size 80 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb --hyp data/hyp.scratch.p5.yaml
 
-[WORKS] python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 42 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb --hyp data/hyp.scratch.p5.yaml
+[WORKS] python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 42 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name exp --hyp data/hyp.scratch.p5.yaml
 
-python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 42 --data data/smol-data.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name v7obb --hyp data/hyp.scratch.p5.yaml
+python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 42 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name exp --hyp data/hyp.scratch.p5.v5obb-exp65-70-hyp.yaml
 
-python train.py --workers 8 --device 0 --sync-bn --batch-size 4 --data data/.yaml  --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name yolov7obb-defParams --hyp data/hyp.scratch.p5.yaml
+[scratch board] python3 train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 21 --epochs 150 --data data/smol-data.yaml --img 768 768 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name exp --hyp data/hyp.more-copypaste-more-mixup.yaml --multi-scale
+
+[Another try with ddp] python -m torch.distributed.launch --nproc_per_node 4 --master_port 9527 train.py --workers 8 --device 0,1,2,3,4,5,6,7 --sync-bn --batch-size 72 --data data/dnca-v2-data_0612.yaml --img 640 640 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name exp --hyp data/hyp.scratch.p5.yaml
+It fails after couple of hours.... Leave it man!
+
+nohup python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 21 --epochs 300 --data data/DOTAv1.yaml --img 1024 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name dotav1 --hyp data/hyp.finetune_dota.yaml > 227.out 2>&1 &
 ```
 
 ## Detect
@@ -46,5 +53,39 @@ python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/
 
 python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/dnca-v2-holdout.yaml --device 1,2,3,4,5,6,7 --batch-size 21
 
-python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/smol-data.yaml --device 1,2,3,4,5,6,7 --batch-size 21
+python3 val.py --weights weights/yolov7_obb_30k_images_60epochs.pt  --data data/smol-data.yaml --device 1,2,3,4,5,6,7 --batch-size 21 --multi-scale
 ```
+
+
+## Export
+```
+python3 export.py --weights runs/train/exp4/weights/best.pt --dynamic --grid --img-size 768
+# rename to exp4-768x768-dynamic.onnx etc
+```
+
+## Benchmark (DOTA v1)
+```
+# For mAP50
+python val.py --data 'data/DOTAv1.yaml' --img 1024 --batch 1 
+```
+Note that before val, we will need to train the model on this dataset. I did it via 
+```
+python train.py --workers 8 --device 1,2,3,4,5,6,7 --sync-bn --batch-size 21 --epochs 300 --data data/DOTAv1.yaml --img 1024 --cfg cfg/training/yolov7.yaml --weights weights/yolov7.pt --name dotav1 --hyp data/hyp.finetune_dota.yaml
+```
+
+## GPU Capacity
+This will help decide the appropriate batch size depending on the number of GPUs to be used.
+
+### 227 (2080Ti) All vals are per GPU
+Imgsz 640
+Train with DDP: 9
+Train without DDP: 6 | Blob = 640*640*3*6
+Val without DDP: 7
+
+# Runs
+1: default hyp
+4: hyp same as exp65
+16: exp 4 + more cutpaste, more mixup
+19: exp 16 with `--multi-scale`
+21: exp 4 (with correct charts)
+23: the og v7obb model (`/algo/users/prashant/GoodsDetector/YOLOv7-OBB/weights/yolov7_obb_30k_images_60epochs.torchscript.pt`) used as pretrained model with training cfg same as exp16.

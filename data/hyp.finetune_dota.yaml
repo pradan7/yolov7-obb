@@ -1,3 +1,5 @@
+# YOLOv5 🚀 by Ultralytics, GPL-3.0 license
+
 lr0: 0.01
 lrf: 0.2
 momentum: 0.937
@@ -20,13 +22,14 @@ hsv_s: 0.7
 hsv_v: 0.4
 degrees: 180
 translate: 0.1
-scale: 0.2 #0.25
+scale: 0.5 #0.25
 shear: 0.0
 perspective: 0.0 #0.0
 flipud: 0.5
 fliplr: 0.5
-mosaic: 0.3 #0.3 # 0.75
-mixup: 0.6 #0.1
-copy_paste: 0.6 #0.0
+mosaic: 0.0 #0.3 # 0.75
+mixup: 0.1 #0.1
+copy_paste: 0.0 #0.0
 cls_theta: 180
 csl_radius: 2.0
+

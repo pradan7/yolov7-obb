@@ -16,8 +16,8 @@ services:
       - /algo/users/prashant/GoodsDetector/YOLOv7-OBB:/root/apps/YOLOv7-OBB
       - /algo/users/prashant/GoodsDetector/annotations:/algo/users/prashant/GoodsDetector/annotations
     working_dir: /root/apps/YOLOv7-OBB
-    container_name: v7obb-train1
+    container_name: v7obb
     # image: dncav2:v1
-    image: v7obb:v2
+    image: docker.io/prashantdn/v7obb:v3
     entrypoint: sleep infinity
     shm_size: 8gb

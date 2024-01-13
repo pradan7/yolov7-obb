@@ -3,6 +3,8 @@
 *.engine
 *.out
 *.onnx
+*.torchscript
+*.ptl
 
 # media
 *.png
@@ -10,6 +12,8 @@
 *.mp4
 *.avi
 *.out
+datasets/
+data/cart_images
 
 # other outputs
 *.csv

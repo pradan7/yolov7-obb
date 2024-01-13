@@ -361,7 +361,9 @@ def train(hyp, opt, device, tb_writer=None):
                 sf = sz / max(imgs.shape[2:])  # scale factor
                 if sf != 1:
                     ns = [math.ceil(x * sf / gs) * gs for x in imgs.shape[2:]]  # new shape (stretched to gs-multiple)
+                    label_ratio = float(ns[0]) / imgs.shape[2]
                     imgs = F.interpolate(imgs, size=ns, mode='bilinear', align_corners=False)
+                    targets[:, 2:6] *= label_ratio # targets (tensor): (n_targets, [img_index clsid cx cy l s theta gaussian_θ_labels])
 
             # Forward
             with amp.autocast(enabled=cuda):
@@ -371,7 +373,7 @@ def train(hyp, opt, device, tb_writer=None):
                 # if 'loss_ota' not in hyp or hyp['loss_ota'] == 1:
                 #     loss, loss_items = compute_loss_ota(pred, targets.to(device), imgs)  # loss scaled by batch_size
                 # else:
-                loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
+                loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size | loss_items: [lbox, lobj, lcls, ltheta]
                 if rank != -1:
                     loss *= opt.world_size  # gradient averaged between devices in DDP mode
                 if opt.quad:
@@ -397,6 +399,7 @@ def train(hyp, opt, device, tb_writer=None):
                 pbar.set_description(s)
 
                 # Plot
+                
                 if plots and ni < 10:
                     f = save_dir / f'train_batch{ni}.jpg'  # filename
                     Thread(target=plot_images, args=(imgs, targets, paths, f), daemon=True).start()
@@ -422,7 +425,7 @@ def train(hyp, opt, device, tb_writer=None):
             final_epoch = epoch + 1 == epochs
             if not opt.notest or final_epoch:  # Calculate mAP
                 wandb_logger.current_epoch = epoch + 1
-                results, maps, times, _ = val.run(data_dict,
+                results, maps, times, _ = val.run(data_dict,  # results: (mp, mr, map50, map, *(loss.cpu() / len(dataloader)))
                                                batch_size=batch_size * 2,
                                                imgsz=imgsz_test,
                                                model=ema.ema,
@@ -445,10 +448,12 @@ def train(hyp, opt, device, tb_writer=None):
                 os.system('gsutil cp %s gs://%s/results/results%s.txt' % (results_file, opt.bucket, opt.name))
 
             # Log
-            tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss', 'train/theta_loss'  # train loss
+            tags = ['train/box_loss', 'train/obj_loss', 'train/cls_loss', 'train/theta_loss',  # train loss
                     'metrics/precision', 'metrics/recall', 'metrics/HBBmAP.5', 'metrics/HBBmAP.5:.95',
-                    'val/box_loss', 'val/obj_loss', 'val/cls_loss',  # val loss
-                    'x/lr0', 'x/lr1', 'x/lr2']  # params
+                    'val/box_loss', 'val/obj_loss', 'val/cls_loss', 'val/theta_loss', # val loss
+                    'x/lr0', 'x/lr1', 'x/lr2']  # params --> mloss len: 4 | results: 8 | lr: 3
+            # print(f"--> mloss len: {len(list(mloss))} | results: {len(list(results))} | lr: {len(lr)}")
+            # -> mloss len: 4 | results: 8 | lr: 3
             for x, tag in zip(list(mloss) + list(results) + lr, tags):
                 if tb_writer:
                     tb_writer.add_scalar(tag, x, epoch)  # tensorboard
@@ -504,7 +509,7 @@ def train(hyp, opt, device, tb_writer=None):
         logger.info('%g epochs completed in %.3f hours.\n' % (epoch - start_epoch + 1, (time.time() - t0) / 3600))
         if opt.data.endswith('coco.yaml') and nc == 80:  # if COCO
             for m in (last, best) if best.exists() else (last):  # speed, mAP tests
-                results, _, _, _ = val.run(  data_dict,
+                results, _, _, _ = val.run(  data_dict, # results: (mp, mr, map50, map, *(loss.cpu() / len(dataloader)))
                                           batch_size=batch_size * 2,
                                           imgsz=imgsz_test,
                                           model=attempt_load(m, device).half(),
@@ -546,7 +551,7 @@ if __name__ == '__main__':
     parser.add_argument('--cfg', type=str, default='', help='model.yaml path')
     parser.add_argument('--data', type=str, default='data/coco.yaml', help='data.yaml path')
     parser.add_argument('--hyp', type=str, default='data/hyp.scratch.p5.yaml', help='hyperparameters path')
-    parser.add_argument('--epochs', type=int, default=300)
+    parser.add_argument('--epochs', type=int, default=100)
     parser.add_argument('--batch-size', type=int, default=16, help='total batch size for all GPUs')
     parser.add_argument('--img-size', nargs='+', type=int, default=[640, 640], help='[train, test] image sizes')
     parser.add_argument('--rect', action='store_true', help='rectangular training')

@@ -17,6 +17,7 @@ import pandas as pd
 import torch
 import torchvision
 import yaml
+from zipfile import ZipFile
 
 from utils.nms_rotated import obb_nms
 from utils.google_utils import gsutil_getsize

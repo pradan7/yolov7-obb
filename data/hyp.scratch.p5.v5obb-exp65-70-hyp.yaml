@@ -26,7 +26,7 @@ perspective: 0.0 #0.0
 flipud: 0.5
 fliplr: 0.5
 mosaic: 0.3 #0.3 # 0.75
-mixup: 0.6 #0.1
-copy_paste: 0.6 #0.0
+mixup: 0.3 #0.1
+copy_paste: 0.2 #0.0
 cls_theta: 180
 csl_radius: 2.0
